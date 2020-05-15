@@ -66,6 +66,7 @@ def save_to_csv(data, save_directory, table):
 
     return None
 
+
 def connect(save_directory, db):
     """
     Creating a connection to a database. If doesn't exist, then warning and create the database.
@@ -78,6 +79,7 @@ def connect(save_directory, db):
 
     # Connect to the database.
     return sqlite3.connect(filepath)
+
 
 def get_data(table, kwarg):
     """
@@ -205,8 +207,17 @@ def main(args=None):
     return None
 
 
+def add_bool_arg(parser, name, default=False, help_text=""):
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument("--" + name, dest=name, action="store_true", help=help_text)
+    group.add_argument("--no-" + name, dest=name, action="store_false", help=None)
+    parser.set_defaults(**{name: default})
+
+
+# noinspection PyTypeChecker
 def parse_args(pargs=None):
     parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=("Module for downloading Sharadar data from Quandl."),
     )
 
@@ -219,11 +230,11 @@ def parse_args(pargs=None):
         "SF3A SF3B SEP TICKERS INDICATORS DAILY SP500 ACTIONS SFP",
     )
 
-    parser.add_argument(
-        "--update",
-        required=False,
-        default=0,
-        help="Update the downloaded data to sqlite3 database tables.",
+    add_bool_arg(
+        parser,
+        "update",
+        False,
+        "Update the downloaded data to database tables. --update True; --no-update False",
     )
 
     parser.add_argument(
@@ -234,21 +245,9 @@ def parse_args(pargs=None):
         "--todate", required=False, default="", help="Date to download data to.",
     )
 
-    parser.add_argument(
-        "--db",
-        required=False,
-        default="sharadar.db",
-        help="Save to csv file. If 1 then results will be saved to csv, 0 to not "
-        "save to csv.",
-    )
+    add_bool_arg(parser, "db", False, "Save to database. --db True; --no-db False")
 
-    parser.add_argument(
-        "--csv",
-        required=False,
-        default="0",
-        help="Save to csv file. If 1 then results will be saved to csv, 0 to not "
-        "save to csv.",
-    )
+    add_bool_arg(parser, "csv", False, "Save to csv file. --csv True; --no-csv False")
 
     parser.add_argument(
         "--save_directory",
@@ -257,11 +256,11 @@ def parse_args(pargs=None):
         help="Sub directory to save the csv files in.",
     )
 
-    parser.add_argument(
-        "--printon",
-        required=False,
-        default="1",
-        help="Print to terminal the data downloaded. 1 for on, 0 for off",
+    add_bool_arg(
+        parser,
+        "printon",
+        True,
+        "Print to terminal the data downloaded. --printon True; --no-printon False",
     )
 
     parser.add_argument(
@@ -279,7 +278,7 @@ def parse_args(pargs=None):
     )
 
     parser.add_argument(
-        "--key", required=False, default=apikey, help="Quandl API key.",
+        "--key", required=False, default="your_api_key", help="Quandl API key.",
     )  # todo remove apikey
     return parser.parse_args(pargs)
 
