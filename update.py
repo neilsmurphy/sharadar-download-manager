@@ -22,11 +22,12 @@ import pandas as pd
 import quandl
 import sqlite3
 
+from config import apikey
+
 """
 For downloading zip files. 
 https://www.quandl.com/tables/SHARADAR-SF1/export?api_key=insert_key
 """
-
 sharadar_tables = {
     "SF1": ["lastupdated", "Core US Fndamentals"],
     "DAILY": ["lastupdated", "Daily Metrics"],
@@ -44,36 +45,65 @@ sharadar_tables = {
 
 
 def get_today():
-    # Get today's date.
+    """Return today's date."""
     return datetime.date.today().strftime("%Y-%m-%d")
 
 
-def save_to_csv(data, save_dir):
+def save_to_csv(data, save_directory, table):
     """
-    Saves all the dataframes to csv format:
-    :param data: Dictionary with keys with table names, values with dataframes.
-    :param save_dir: Directory where csv's will be saved.
+    Saves the dataframes to csv format:
+    :param data: Dataframe downloaded from Quandl.
+    :param save_directory: Directory where csv's will be saved.
+    :param table: Table name downloaded and being saved. e.g. 'SEP'
     :return None:
     """
-    path = Path(save_dir)
+    path = Path(save_directory)
     path.mkdir(parents=True, exist_ok=True)
 
-    for table_name, dataframe in data.items():
-        file_name = table_name + ".csv"
-        file_path = path / file_name
-        dataframe.to_csv(file_path)
+    file_name = table + ".csv"
+    file_path = path / file_name
+    data.to_csv(file_path, index=False)
 
     return None
 
+def connect(save_directory, db):
+    """
+    Creating a connection to a database. If doesn't exist, then warning and create the database.
+    :param save_directory: Directory where the database will be housed.
+    :param db: Database name.
+    :return conn: Returns a connection object.
+    """
+    path = Path(save_directory)
+    filepath = path / db
 
-def store_data(table, sharadar_tables):
+    # Connect to the database.
+    return sqlite3.connect(filepath)
+
+def get_data(table, kwarg):
+    """
+    Using the table name and kwargs retrieves the most current data.
+    :param table: Name of table to update.
+    :param kwarg: Dictionary containing the parameters to send to Quandl.
+    :return dataframe: Pandas dataframe containing latest data for the table.
+    """
+    return quandl.get_table("SHARADAR/" + table.upper(), paginate=True, **kwarg)
+
+
+def store_data(table, args):
+    """
+    Evaluates the current state of stored data, identifies where the latest rows in the table are,
+    and then seeks out new data from Sharadar, then saves this downloaded data to the table.
+    :param table: String identifying which table to save.
+    :param args: argsparse object.
+    :return None: Nothing to return the module updates a database.
+    """
     # Retrieve the new data from Quandl
     print("Getting data, updating {}".format(table))
 
     end_date = get_today()
 
     # Connect to the database.
-    conn = sqlite3.connect("data/sharadar.db")
+    conn = connect(args.save_directory, args.db)
     c = conn.cursor()
 
     sql = "SELECT MAX({}) FROM {}".format(sharadar_tables[table][0], table)
@@ -92,9 +122,7 @@ def store_data(table, sharadar_tables):
         return None
     else:
         kwarg = {sharadar_tables[table][0]: {"gte": start_date, "lte": end_date}}
-        df_new_data = quandl.get_table(
-            "SHARADAR/" + table.upper(), paginate=True, **kwarg
-        )
+        df_new_data = get_data(table, kwarg)
     if df_new_data.shape[0] == 0:
         print("No new data for {}".format(table))
         return
@@ -116,19 +144,19 @@ def store_data(table, sharadar_tables):
     return None
 
 
-def get_table(sharadar_tables, args=None):
+def main(args=None):
     """
-    Download each sharadar table
-    :param tables; List with the tables to be downloaded.
-    :return dictionary: dictionary with keys are table names, and values are dataframes.
+    Entry point. Manages user requests and downloads Sharadar data, displays, and saves data
+    creates csv files and database.
+    Use update.py --help to get  help for parameters.
+    :param args:
+    :return None:
     """
 
     args = parse_args(args)
 
-    # api_key = args.key    ### USE THIS LINE IN LIVE VERSION.
-    filepath = 'key.txt'
-    with open(filepath) as fp:
-        api_key = fp.readline()
+    # api_key = args.key    ### todo USE THIS LINE IN LIVE VERSION.
+    api_key = apikey  ### todo delete this
     quandl.ApiConfig.api_key = api_key
 
     # Download dataframes from quandl. If argument provided ALL will give all tables.
@@ -153,36 +181,34 @@ def get_table(sharadar_tables, args=None):
     if args.update:
         # Open tables, get data, and save.
         for t in tables:
-            store_data(t, sharadar_tables)
+            store_data(t, args)
     elif args.fromdate and args.todate:
-        data = {}
         for t in tables:
+            # Retrieve data.
             kwarg = {sharadar_tables[t][0]: {"gte": args.fromdate, "lte": args.todate}}
-            data[t] = quandl.get_table(args.dataset + "/" + t, paginate=True, **kwarg)
-        # Save files
-        if bool(int(args.csv)):
-            save_to_csv(data, args.save_directory)
-        else:
-            pass
+            data = get_data(t, kwarg)
 
-        # Print results.
-        pd.options.display.max_rows = int(args.display_rows)
-        if bool(int(args.printon)):
-            for k, v in data.items():
-                print("{} - {}".format(k, sharadar_tables[k][1]))
-                print(v.head(int(args.display_rows)))
-        else:
-            pass
+            # Save files
+            if bool(int(args.csv)):
+                save_to_csv(data, args.save_directory, t)
+            else:
+                pass
+
+            # Print results.
+            pd.options.display.max_rows = int(args.display_rows)
+            if bool(int(args.printon)):
+                print("{} - {}".format(t, sharadar_tables[t][1]))
+                print(data.head(int(args.display_rows)))
+            else:
+                pass
 
     return None
 
 
 def parse_args(pargs=None):
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description=("Andrew Wert downloading Quandl data."),
+        description=("Module for downloading Sharadar data from Quandl."),
     )
-
 
     parser.add_argument(
         "--tables",
@@ -206,6 +232,14 @@ def parse_args(pargs=None):
 
     parser.add_argument(
         "--todate", required=False, default="", help="Date to download data to.",
+    )
+
+    parser.add_argument(
+        "--db",
+        required=False,
+        default="sharadar.db",
+        help="Save to csv file. If 1 then results will be saved to csv, 0 to not "
+        "save to csv.",
     )
 
     parser.add_argument(
@@ -245,11 +279,11 @@ def parse_args(pargs=None):
     )
 
     parser.add_argument(
-        "--key", required=False, default="your_temp_key", help="Quandl API key.",
-    )
+        "--key", required=False, default=apikey, help="Quandl API key.",
+    )  # todo remove apikey
     return parser.parse_args(pargs)
 
 
 if __name__ == "__main__":
 
-    get_table(sharadar_tables)
+    main()
