@@ -1,14 +1,21 @@
-from update import sharadar_tables, get_today, init_dates, path_directory, path_csv
+from update import (
+    sharadar_tables,
+    get_today,
+    init_dates,
+    path_directory,
+    path_save,
+    sync_table,
+)
 import datetime
 
 # Class for including args.
 class ArgsTest:
-    def __init__(self, todate=None, fromdate=None, directory=None, save_name=None):
+    def __init__(self, todate=None, fromdate=None, directory=None, save_name=None, save_to=None):
         self.todate = todate
         self.fromdate = fromdate
         self.directory = directory
         self.save_name = save_name
-
+        self.save_to = save_to
 
 def test_today():
     result = get_today()
@@ -19,7 +26,7 @@ def test_sharadar_tables():
     tables = [
         "SF1",
         "SF2",
-        "SF3",
+        # "SF3",
         "EVENTS",
         "SF3A",
         "SF3B",
@@ -52,7 +59,7 @@ def test_init_dates_col_lastupdated():
 
 def test_init_dates_calendardate():
     at = ArgsTest()
-    tables = ["SF3", "SF3A", "SF3B"]
+    tables = ["SF3A", "SF3B"]
     for t in tables:
         date_col, date_start, date_end = init_dates(t, at)
         assert date_col == "calendardate"
@@ -91,8 +98,46 @@ def test_path_directory():
 
 def test_path_csv():
     table = "EVENTS"
+    save_to = "csv"
     save_name = "mytest"
     dir = "data"
-    at = ArgsTest(directory=dir, save_name=save_name)
+    at = ArgsTest(directory=dir, save_name=save_name, save_to=save_to)
 
-    assert str(path_csv(table, at)) == "{}/{}_{}.csv".format(dir, save_name, table)
+    assert str(path_save(table, at)) == "{}/{}_{}.csv".format(dir, save_name, table)
+
+def test_path_db():
+    table = "EVENTS"
+    save_to = "db"
+    save_name = "mytest"
+    dir = "data"
+    at = ArgsTest(directory=dir, save_name=save_name, save_to=save_to)
+
+    assert str(path_save(table, at)) == "{}/{}.db".format(dir, save_name)
+
+def test_db_exist():
+    pass
+#
+# def test_to_csv_csv():
+#     table = "EVENTS"
+#     save_name = "mytest"
+#     fromdate = "2020-03-01"
+#     todate = "2020-03-15"
+#     dir = "test/data"
+#     at = ArgsTest(
+#         directory=dir, save_name=save_name, fromdate=fromdate, todate=todate
+#     )
+#
+#     _, res = to_csv(table, at)
+#     assert res.size != 0
+#
+#
+# def test_to_csv_no_csv():
+#     table = "ACTIONS"
+#     save_name = "mytest"
+#     fromdate = "2020-03-01"
+#     todate = "2020-03-15"
+#     dir = "test/data"
+#     at = ArgsTest(directory=dir, save_name=save_name, fromdate=fromdate, todate=todate)
+#
+#     _, res = to_csv(table, at)
+#     assert res.size == 0
