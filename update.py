@@ -13,14 +13,13 @@
 # along with this program.  If not, see... https://bit.ly/2Tlr9ii
 #
 ###############################################################################
-from pathlib import Path
 import argparse
-import sys
 import datetime
+from pathlib import Path
+import sqlite3
 
 import pandas as pd
 import quandl
-import sqlite3
 
 from config import apikey
 
