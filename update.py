@@ -29,18 +29,18 @@ For downloading zip files.
 https://www.quandl.com/tables/SHARADAR-SF1/export?api_key=insert_key
 """
 sharadar_tables = {
-    "SF1": ["lastupdated", "Core US Fndamentals"],
-    "DAILY": ["lastupdated", "Daily Metrics"],
-    "SEP": ["date", "Sharadar Equity Prices"],
-    "TICKERS": ["lastupdated", "Tickers and Metadata"],
-    "ACTIONS": ["date", "Corporate Actions"],
-    "EVENTS": ["date", "Core US Fundamental Events"],
-    "SF2": ["filingdate", "Core US Insiders"],
-    # "SF3": ["calendardate", "Core US Institutional Investors Summary by Ticker"],
-    "SF3A": ["calendardate", "Core US Institutional Investors Summary by Ticker"],
-    "SF3B": ["calendardate", "Core US Institutional Investors Summary by Investor"],
-    "SFP": ["date", "Sharadar Fund Prices"],
-    "SP500": ["date", "S&P500 Current and Historical Constituents"],
+    "SF1": ["lastupdated", "Core US Fndamentals", 7],
+    "DAILY": ["lastupdated", "Daily Metrics", 9],
+    "SEP": ["date", "Sharadar Equity Prices", 11],
+    "TICKERS": ["lastupdated", "Tickers and Metadata", 1],
+    "ACTIONS": ["date", "Corporate Actions", 1],
+    "EVENTS": ["date", "Core US Fundamental Events", 1],
+    "SF2": ["filingdate", "Core US Insiders", 17],
+    "SF3": ["calendardate", "Core US Institutional Investors Summary by Ticker", 21],
+    "SF3A": ["calendardate", "Core US Institutional Investors Summary by Ticker", 1],
+    "SF3B": ["calendardate", "Core US Institutional Investors Summary by Investor", 1],
+    "SFP": ["date", "Sharadar Fund Prices", 5],
+    "SP500": ["date", "S&P500 Current and Historical Constituents", 1],
 }
 
 
@@ -136,7 +136,7 @@ def path_save(table, args):
     return path / file_name
 
 
-def sync_table(table, args):
+def download_table(table, args):
     """
     Saves the dataframes to csv format:
     :param data: Dataframe downloaded from Quandl.
@@ -287,7 +287,7 @@ def main(args=None):
 
     # Open tables, get data, and save.
     for t in tables:
-        sync_table(t, args)
+        download_table(t, args)
 
     c.close()
     conn.close()
@@ -379,5 +379,8 @@ def parse_args(pargs=None):
 
 
 if __name__ == "__main__":
-
+    import time
+    start_timer = time.time()
     main()
+
+    print("Elapsed time is {:.2f}".format(time.time() - start_timer))

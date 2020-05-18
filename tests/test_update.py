@@ -4,7 +4,7 @@ from update import (
     init_dates,
     path_directory,
     path_save,
-    sync_table,
+    download_table,
 )
 import datetime
 
