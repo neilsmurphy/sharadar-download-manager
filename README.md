@@ -1,3 +1,55 @@
-# Sharadar Download Manager: a Python tool for downloading sharadar data from Quandl.
+# Sharadar Download Manager: a Python tool for downloading sharadar data from Quandl
+
+
+
+[![GitHub issues:](https://img.shields.io/github/issues/neilsmurphy/sharadar-download-manager)](https://github.com/neilsmurphy/sharadar-download-manager/issues)
+[![GitHub stars:](https://img.shields.io/github/stars/neilsmurphy/sharadar-download-manager)](https://github.com/neilsmurphy/sharadar-download-manager/stargazers)
+[![GitHub license:](https://img.shields.io/github/license/neilsmurphy/sharadar-download-manager)](https://github.com/neilsmurphy/sharadar-download-manager/blob/master/LICENSE)
+![Style:](https://img.shields.io/badge/code%20style-black-black)
+# Important: Still under development. Not deployed for use.
+
+
+
+## What is it?  
+Sharadar Download Manager is a simple package for assising in downloading the Sharadar Stock tables from Quandl. It aims
+to simplify downloading and updating these large files to local csv files and databases. It also reduces the amount of 
+time needed to download and manage these files. Finally, it seeks to make downloading Sharadar data files easier for 
+new programmers.
+
+## Main Features
+Here are a few of the things the Sharadar Download Manager does well. 
+- Easy input of dates, file options, and directory and filenames.
+- Can select one, many or all tables to download.
+- Can display table results after download to confirm data is saved.
+- Automatic multi-threading for speed.
+- Size of file management to ensure limits are not exceeded.
+- Reads current datafiles to determine latest date available.
+- Api-key stored for ease of use on a regular basis.
+
+## Where to get it
+At the moment, just download or clone the repository from github. To run this file you just need the main "update.py"
+file.  
+
+## Dependencies
+Packages required: 
+
+[Quandl](https://github.com/quandl/quandl-python)  
+[Pandas](https://github.com/pandas-dev/pandas)
+
+## License
+[MIT](https://github.com/neilsmurphy/sharadar-download-manager/blob/master/LICENSE)
+
+## Documentation
+Coming.
+
+## Getting Help
+Coming.
+
+
+
+
+
+
+
 
 
