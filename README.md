@@ -11,10 +11,10 @@
 
 
 ## What is it?  
-Sharadar Download Manager is a simple package for assising in downloading the Sharadar Stock tables from Quandl. It aims
-to simplify downloading and updating these large files to local csv files and databases. It also reduces the amount of 
-time needed to download and manage these files. Finally, it seeks to make downloading Sharadar data files easier for 
-new programmers.
+Sharadar Download Manager is a simple script for assisting in downloading the Sharadar stock tables from Quandl. It aims
+to simplify downloading and updating these files to local csv files and databases. It seeks to make downloading 
+Sharadar data files easier for new or non-programmers. It is not a bulk downloader as the 
+Quandl python API does not allow for concurrency.
 
 ## Main Features
 Here are a few of the things the Sharadar Download Manager does well. 
