@@ -28,18 +28,18 @@ For downloading zip files.
 https://www.quandl.com/tables/SHARADAR-SF1/export?api_key=insert_key
 """
 sharadar_tables = {
+    "TICKERS": ["lastupdated", "Tickers and Metadata", 1],
+    "EVENTS": ["date", "Core US Fundamental Events", 1],
+    "SF3A": ["calendardate", "Core US Institutional Investors Summary by Ticker", 1],
+    "SF3B": ["calendardate", "Core US Institutional Investors Summary by Investor", 1],
+    "ACTIONS": ["date", "Corporate Actions", 1],
+    "SP500": ["date", "S&P500 Current and Historical Constituents", 1],
+    "SFP": ["date", "Sharadar Fund Prices", 5],
     "SF1": ["lastupdated", "Core US Fndamentals", 7],
     "DAILY": ["lastupdated", "Daily Metrics", 9],
     "SEP": ["date", "Sharadar Equity Prices", 11],
-    "TICKERS": ["lastupdated", "Tickers and Metadata", 1],
-    "ACTIONS": ["date", "Corporate Actions", 1],
-    "EVENTS": ["date", "Core US Fundamental Events", 1],
     "SF2": ["filingdate", "Core US Insiders", 17],
     "SF3": ["calendardate", "Core US Institutional Investors Summary by Ticker", 21],
-    "SF3A": ["calendardate", "Core US Institutional Investors Summary by Ticker", 1],
-    "SF3B": ["calendardate", "Core US Institutional Investors Summary by Investor", 1],
-    "SFP": ["date", "Sharadar Fund Prices", 5],
-    "SP500": ["date", "S&P500 Current and Historical Constituents", 1],
 }
 
 
@@ -90,7 +90,7 @@ def init_dates(table, args):
     else:
         date_end = get_today()
 
-        # Get ending date.
+    # Get ending date.
     if args.fromdate:
         date_start = args.fromdate
     else:
@@ -135,12 +135,17 @@ def path_save(table, args):
     return path / file_name
 
 
-def download_table(table, args):
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
+
+
+def download_table(table, tc, args):
     """
-    Saves the dataframes to csv format:
-    :param data: Dataframe downloaded from Quandl.
-    :param directory: Directory where csv's will be saved.
-    :param table: Table name downloaded and being saved. e.g. 'SEP'
+    Saves Quandl data to disk
+    :param table: Table to be downloaded from Quandl.
+    :param args: See --help in args.parse
     :return None:
     """
 
@@ -167,6 +172,8 @@ def download_table(table, args):
             date_start = (df_save[date_col].max() + pd.Timedelta("1 days")).strftime(
                 "%Y-%m-%d"
             )
+            if date_start > get_today():
+                return None
         else:
             pass
 
@@ -187,15 +194,20 @@ def download_table(table, args):
     else:
         pass
 
+    # todo fix
     # Check start and end dates.
-    if date_end < date_start:
-        raise ValueError(
-            "Your start date {} is after your end date {}. This could be caused because the start dates in your "
-            "saved data are later than the todate entered.".format(date_start, date_end)
-        )
+    # if date_end < date_start:
+    #     raise ValueError(
+    #         "Your start date {} is after your end date {}. This could be caused because the start dates in your "
+    #         "saved data are later than the todate entered.".format(date_start, date_end)
+    #     )
 
-    # Get the data between the dates from Quandl
-    kwarg = {date_col: {"gte": date_start, "lte": date_end}}
+    # Get the data between the dates from Quandl and restricted for tickers if tc not null.
+    if len(tc) != 0:
+        kwarg = {date_col: {"gte": date_start, "lte": date_end}, "ticker": list(tc)}
+    else:
+        kwarg = {date_col: {"gte": date_start, "lte": date_end}}
+
     df_new = get_data(table, kwarg)
 
     # Join dataframes if CSV.
@@ -220,20 +232,23 @@ def download_table(table, args):
         else:
             pass
 
-        print(
-            "Saved table {} from {} to {}.".format(
-                table,
-                df_new[date_col].min().strftime("%Y-%m-%d"),
-                df_new[date_col].max().strftime("%Y-%m-%d"),
-            )
-        )
+        # if df_new.shape[0] > 0:
+        #     print(
+        #         "Saved table {} from {} to {}.".format(
+        #             table,
+        #             df_new[date_col].min().strftime("%Y-%m-%d"),
+        #             df_new[date_col].max().strftime("%Y-%m-%d"),
+        #         )
+        #     )
+        # else:
+        #     pass
     else:
-        print("No data in table {} for saving.".format(table))
+        print("No data in {}.".format(table))
 
-    if args.print_rows != 0:
+    if args.print_rows != 0 and df_total.shape[0] != 0:
         print(
-            "Table: {}, \n{}".format(
-                table, df_total.head(pd.to_numeric(args.print_rows))
+            "Table: {}, shape {} \n{}".format(
+                table, df_total.shape, df_total.head(pd.to_numeric(args.print_rows))
             )
         )
     else:
@@ -257,8 +272,9 @@ def main(args=None):
     api_key = apikey  ### todo delete this
     quandl.ApiConfig.api_key = api_key
 
-    conn = connect(path_save(None, args))
-    c = conn.cursor()
+    if args.save_to == "db":
+        conn = connect(path_save(None, args))
+        c = conn.cursor()
 
     # Download dataframes from quandl. Set the tables.
 
@@ -271,25 +287,35 @@ def main(args=None):
                         t, sharadar_tables.keys()
                     )
                 )
-            elif t == "SF3":
-                print(
-                    "The SF3 table has very large data sets that exceed the download limits of sharadar so SF3 "
-                    "is not downloaded as part of this program. If you wish to download SF3, you must do so "
-                    "direclty from the Quandl site using the web api."
-                )
+            else:
+                pass
     else:
         tables = sharadar_tables.keys()
+
     print("tables {}".format(tables))
 
     # Check db exists
     db_exists(args)
 
     # Open tables, get data, and save.
+    tstart = time.time()
     for t in tables:
-        download_table(t, args)
+        if sharadar_tables[t][2] > 1:
+            sql = "SELECT DISTINCT ticker FROM tickers"
+            all_tickers = pd.read_sql(sql, con=conn)
+            all_tickers = sorted(all_tickers['ticker'].to_list())
+            ticker_chunks = chunks(all_tickers, 1000)
+            for tc in ticker_chunks:
+                print("\nDownloading stocks in {} from {} to {}".format(t, tc[0], tc[-1]))
+                download_table(t, tc, args)
+        else:
+            download_table(t, [], args)
+        print("Completed download of {} in {}".format(t, time.time() - tstart))
+        tstart = time.time()
 
-    c.close()
-    conn.close()
+    if args.save_to == "db":
+        c.close()
+        conn.close()
 
     return None
 
@@ -350,7 +376,7 @@ def parse_args(pargs=None):
     parser.add_argument(
         "--save_name",
         required=False,
-        default="",
+        default=None,
         help="If provided will be the name of the database, or the pre-pend text to the csv. \n"
         "For example, if 'mydata' and csv table is DAILY, then file will be 'mydata_DAILY.csv'",
     )
@@ -379,6 +405,7 @@ def parse_args(pargs=None):
 
 if __name__ == "__main__":
     import time
+
     start_timer = time.time()
     main()
 
