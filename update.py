@@ -363,7 +363,7 @@ def parse_args(pargs=None):
     parser.add_argument(
         "--save_to",
         required=False,
-        default="",
+        default="db",
         help="Save to either database or csv. Valid values are db or csv. Default is None. \n"
         "If the database or csv does not exist, it will be created. \n"
         "If CSV exists and fromdate provided then csv file will be overwritten. \n"
@@ -376,7 +376,7 @@ def parse_args(pargs=None):
     parser.add_argument(
         "--save_name",
         required=False,
-        default=None,
+        default="sharadar",
         help="If provided will be the name of the database, or the pre-pend text to the csv. \n"
         "For example, if 'mydata' and csv table is DAILY, then file will be 'mydata_DAILY.csv'",
     )
