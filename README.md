@@ -6,9 +6,6 @@
 [![GitHub stars:](https://img.shields.io/github/stars/neilsmurphy/sharadar-download-manager)](https://github.com/neilsmurphy/sharadar-download-manager/stargazers)
 [![GitHub license:](https://img.shields.io/github/license/neilsmurphy/sharadar-download-manager)](https://github.com/neilsmurphy/sharadar-download-manager/blob/master/LICENSE)
 ![Style:](https://img.shields.io/badge/code%20style-black-black)
-# Important: Still under development. Not deployed for use.
-
-
 
 ## What is it?  
 Sharadar Download Manager is a simple script for assisting in downloading the Sharadar stock tables from Quandl. It aims
@@ -40,7 +37,15 @@ Packages required:
 [MIT](https://github.com/neilsmurphy/sharadar-download-manager/blob/master/LICENSE)
 
 ## Documentation
-Coming.
+Works best for short term updates. Some of the larger tables will error out in communications with Quandl even when 
+chunking the data. Just re-run and the program will check what data has been saved. 
+
+This program also works more seamlessly with Sqlite3 than with csv.
+Run using update.py inline. Get help with: 
+```
+python update.py --help
+```
+
 
 ## Getting Help
 Coming.
