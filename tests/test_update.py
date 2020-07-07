@@ -106,28 +106,6 @@ def test_path_db():
 
 def test_db_exist():
     pass
-#
-# def test_to_csv_csv():
-#     table = "EVENTS"
-#     save_name = "mytest"
-#     fromdate = "2020-03-01"
-#     todate = "2020-03-15"
-#     dir = "test/data"
-#     at = ArgsTest(
-#         directory=dir, save_name=save_name, fromdate=fromdate, todate=todate
-#     )
-#
-#     _, res = to_csv(table, at)
-#     assert res.size != 0
-#
-#
-# def test_to_csv_no_csv():
-#     table = "ACTIONS"
-#     save_name = "mytest"
-#     fromdate = "2020-03-01"
-#     todate = "2020-03-15"
-#     dir = "test/data"
-#     at = ArgsTest(directory=dir, save_name=save_name, fromdate=fromdate, todate=todate)
-#
-#     _, res = to_csv(table, at)
-#     assert res.size == 0
+
+def test_return_yesterday():
+    pass
