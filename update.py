@@ -17,6 +17,7 @@ import argparse
 import datetime
 from pathlib import Path
 import sqlite3
+import time
 
 import pandas as pd
 import quandl
@@ -45,12 +46,42 @@ sharadar_tables = {
 
 def db_exists(args):
     # If there is a database designated, check for filename in that datapath.
-    if args.save_to == "db":
-        file_path = path_save("test", args)
-        if not file_path.is_file():
-            raise ValueError("No database file matches the directory and name entered.")
-        else:
-            return None
+    file_path = path_save(args)
+    if not file_path.is_file():
+        raise ValueError("No database file matches the directory and name entered.")
+    else:
+        return None
+
+
+def set_tables(args):
+    # Set the tables.
+    if args.tables:
+        tables = args.tables
+        for t in tables:
+            if t not in sharadar_tables:
+                raise ValueError(
+                    "The table {} is not a valid table. Valid table names are: {}".format(
+                        t, sharadar_tables.keys()
+                    )
+                )
+    else:
+        tables = sharadar_tables.keys()
+
+    if args.print_on:
+        print("tables {}".format(tables))
+
+    return tables
+
+
+def get_all_tickers(args):
+    # Get a list of all the tickers in the db.
+    sql = "SELECT DISTINCT ticker FROM tickers"
+    conn = connect(path_save(args))
+    all_tickers = pd.read_sql(sql, con=conn)
+    conn.close()
+    all_tickers = sorted(all_tickers["ticker"].to_list())
+
+    return all_tickers
 
 
 def get_today():
@@ -88,18 +119,10 @@ def init_dates(table, args):
     if args.todate:
         date_end = args.todate
     else:
-        date_end = get_today()
+        date_end = pd.to_datetime(get_today()) - pd.Timedelta("1 days")
+        date_end = date_end.strftime("%Y-%m-%d")
 
-    # Get ending date.
-    if args.fromdate:
-        date_start = args.fromdate
-    else:
-        # Arbitrarily old start date will get data starting at the first row.
-        date_start = "2000-01-01"
-
-    assert date_start < date_end
-
-    return date_col, date_start, date_end
+    return date_col, date_end
 
 
 def path_directory(args):
@@ -114,23 +137,17 @@ def path_directory(args):
     return path
 
 
-def path_save(table, args):
+def path_save(args):
     """
-    Set csv filepath.
+    Set filepath.
     :param args:
     :return path object:
     """
     path = path_directory(args)
-    if args.save_to == "db":
-        if args.save_name:
-            file_name = args.save_name + ".db"
-        else:
-            file_name = "data.db"
-    elif args.save_to == "csv":
-        if args.save_name:
-            file_name = args.save_name + "_" + table + ".csv"
-        else:
-            file_name = table + ".csv"
+    if args.save_name:
+        file_name = args.save_name + ".db"
+    else:
+        file_name = "data.db"
 
     return path / file_name
 
@@ -141,118 +158,138 @@ def chunks(lst, n):
         yield lst[i : i + n]
 
 
-def download_table(table, tc, args):
+def accumulate_results(df_downloaded, t, args):
+    """ Collect the downloaded tables in a `side` table."""
+
+    # Validate accumulated table and append to original.
+    table_name = t + "_cumm"
+    conn = connect(path_save(args))
+    df_downloaded.to_sql(table_name, con=conn, if_exists="append", index=False)
+    conn.close()
+
+
+def consolidate_results(t, tstart, args):
+    # Validate accumulated table and append to original.
+    table_name = t + "_cumm"
+    sql = "SELECT * FROM " + table_name
+
+    conn = connect(path_save(args))
+    try:
+        df_cumm = pd.read_sql(sql, con=conn)
+    except:
+        if args.print_on:
+            print(
+                "There was no downloaded data to add from {} to {}.".format(
+                    table_name, t
+                )
+            )
+        conn.close()
+        return
+
+    if df_cumm.size > 0:
+        df_cumm.to_sql(t, con=conn, if_exists="append", index=False)
+        if args.print_on:
+            print("Completed download of {} in {}".format(t, time.time() - tstart))
+    else:
+        if args.print_on:
+            print("No data to add to {}".format(t))
+
+    c = conn.cursor()
+    sql = "DROP TABLE {}".format(table_name)
+    c.execute(sql)
+    conn.close()
+
+
+def download_table(table, args, tc=None):
     """
-    Saves Quandl data to disk
+    Saves Quandl data to local sqlite3 database.
     :param table: Table to be downloaded from Quandl.
     :param args: See --help in args.parse
     :return None:
     """
 
-    df_save = pd.DataFrame()
-    date_col, date_start, date_end = init_dates(table, args)
+    date_col, date_end = init_dates(table, args)
 
-    file_path = path_save(table, args)
+    # Get filepath.
+    file_path = path_save(args)
 
-    if args.save_to == "db":
-        # Connect to the database.
-        conn = connect(file_path)
-        c = conn.cursor()
+    # Check if table exist and get the start date. If table doesn't exist, set start date to one week before end date.
+    sql_check_table_exist = "SELECT name FROM sqlite_master WHERE type = 'table' AND tbl_name = '{}';".format(
+        table
+    )
+    conn = connect(file_path)
+    c = conn.cursor()
+    c.execute(sql_check_table_exist)
+
+    if len(c.fetchall()) == 1:
+        sql = "SELECT MAX({}) FROM {}".format(date_col, table)
+        c.execute(sql)
+        date_start = (
+            pd.to_datetime(c.fetchone()[0]) + pd.Timedelta("1 days")
+        ).strftime("%Y-%m-%d")
     else:
-        pass
+        date_start = pd.to_datetime(date_end) - pd.Timedelta("7 days")
+        date_start = date_start.strftime("%Y-%m-%d")
+        if args.print_on:
+            print(date_start)
 
-    if args.save_to == "csv" and file_path.is_file():
-        # Open csv if exist to dataframe and get maximum date.
-        df_save = pd.read_csv(
-            file_path, parse_dates=[date_col], infer_datetime_format=True
-        ).sort_values(date_col)
-
-        # If there is local data, get the most recent date as start date.
-        if df_save.size != 0:
-            date_start = (df_save[date_col].max() + pd.Timedelta("1 days")).strftime(
-                "%Y-%m-%d"
-            )
-            if date_start > get_today():
-                return None
-        else:
-            pass
-
-    elif args.save_to == "db" and file_path.is_file():
-
-        # Check if table exist.
-        sql_check_table_exist = "SELECT name FROM sqlite_master WHERE type = 'table' AND name = '{}';".format(
-            table
-        )
-        c.execute(sql_check_table_exist)
-        if c.rowcount != -1:
-            sql = "SELECT MAX({}) FROM {}".format(date_col, table)
-            c.execute(sql)
-            date_start = (
-                pd.to_datetime(c.fetchone()[0]) + pd.Timedelta("1 days")
-            ).strftime("%Y-%m-%d")
-
-    else:
-        pass
-
-    # todo fix
-    # Check start and end dates.
-    # if date_end < date_start:
-    #     raise ValueError(
-    #         "Your start date {} is after your end date {}. This could be caused because the start dates in your "
-    #         "saved data are later than the todate entered.".format(date_start, date_end)
-    #     )
+    conn.close()
 
     # Get the data between the dates from Quandl and restricted for tickers if tc not null.
-    if len(tc) != 0:
+    if tc and len(tc) != 0:
         kwarg = {date_col: {"gte": date_start, "lte": date_end}, "ticker": list(tc)}
     else:
         kwarg = {date_col: {"gte": date_start, "lte": date_end}}
 
-    df_new = get_data(table, kwarg)
+    try:
+        df_new = get_data(table, kwarg)
+    except:
+        return 1
 
-    # Join dataframes if CSV.
-    if df_save.size != 0 and args.save_to == "csv":
-        df_total = pd.concat([df_save, df_new])
-    else:
-        df_total = df_new
-
-    if df_total.size != 0:
-        if table == "SF3B":
-            df_total = df_total.sort_values(date_col, ascending=False)
+    if df_new.size == 0:
+        if tc:
+            if args.print_on:
+                print(
+                    "No data retrieved for table {} from {} to {}".format(
+                        table, tc[0], tc[-1]
+                    )
+                )
         else:
-            df_total = df_total.sort_values(
-                [date_col, "ticker"], ascending=[False, True]
-            )
+            if args.print_on:
+                print("No data retrieved for table {}".format(table))
+        return df_new
 
-        if args.save_to == "csv":
-            df_total.to_csv(file_path, index=False)
-        elif args.save_to == "db":
-            # Join the new data from Quandl with the existing dataframe and sort, reset index.
-            df_new.to_sql(table, con=conn, if_exists="append", index=False)
-        else:
-            pass
-
-        # if df_new.shape[0] > 0:
-        #     print(
-        #         "Saved table {} from {} to {}.".format(
-        #             table,
-        #             df_new[date_col].min().strftime("%Y-%m-%d"),
-        #             df_new[date_col].max().strftime("%Y-%m-%d"),
-        #         )
-        #     )
-        # else:
-        #     pass
+    if table == "SF3B":
+        df_new = df_new.sort_values(date_col, ascending=False)
     else:
-        print("No data in {}.".format(table))
+        df_new = df_new.sort_values([date_col, "ticker"], ascending=[False, True])
 
-    if args.print_rows != 0 and df_total.shape[0] != 0:
+    # Join the new data from Quandl with the existing dataframe and sort, reset index.
+    table_name = table + "_cumm"
+    conn = connect(file_path)
+    df_new.to_sql(table_name, con=conn, if_exists="append", index=False)
+    conn.close()
+
+    if args.print_on:
         print(
-            "Table: {}, shape {} \n{}".format(
-                table, df_total.shape, df_total.head(pd.to_numeric(args.print_rows))
+            "Saved table {} date from {} to {}, ticker from {} to {}.".format(
+                table,
+                df_new[date_col].min().strftime("%Y-%m-%d"),
+                df_new[date_col].max().strftime("%Y-%m-%d"),
+                df_new["ticker"].min(),
+                df_new["ticker"].max(),
             )
         )
-    else:
-        pass
+
+    if args.print_rows != 0 and df_new.shape[0] != 0:
+        if args.print_on:
+            print(
+                "Table: {}, shape {} \n{}".format(
+                    table, df_new.shape, df_new.head(pd.to_numeric(args.print_rows))
+                )
+            )
+        else:
+            pass
 
     return df_new
 
@@ -267,61 +304,66 @@ def main(args=None):
     """
 
     args = parse_args(args)
+    start_timer = time.time()
 
     # api_key = args.key    ### todo USE THIS LINE IN LIVE VERSION.
     api_key = apikey  ### todo delete this
     quandl.ApiConfig.api_key = api_key
 
-    if args.save_to == "db":
-        conn = connect(path_save(None, args))
-        c = conn.cursor()
-
-    # Download dataframes from quandl. Set the tables.
-
-    if args.tables:
-        tables = args.tables
-        for t in tables:
-            if t not in sharadar_tables.keys():
-                raise ValueError(
-                    "The table {} is not a valid table. Valid table names are: {}".format(
-                        t, sharadar_tables.keys()
-                    )
-                )
-            else:
-                pass
-    else:
-        tables = sharadar_tables.keys()
-
-    print("tables {}".format(tables))
+    tables = set_tables(args)
 
     # Check db exists
     db_exists(args)
 
-    # Open tables, get data, and save.
     tstart = time.time()
+
     for t in tables:
+        # Check if table is a large table (>1), if so, break into chunks by ticker.
         if sharadar_tables[t][2] > 1:
-            sql = "SELECT DISTINCT ticker FROM tickers"
-            all_tickers = pd.read_sql(sql, con=conn)
-            all_tickers = sorted(all_tickers['ticker'].to_list())
+            all_tickers = get_all_tickers(args)
+
+            # Get tickers in chunks of 1000.
             ticker_chunks = chunks(all_tickers, 1000)
             for tc in ticker_chunks:
-                print("\nDownloading stocks in {} from {} to {}".format(t, tc[0], tc[-1]))
-                download_table(t, tc, args)
+                if args.print_on:
+                    print(
+                        "\nDownloading stocks in {} from {} to {}".format(
+                            t, tc[0], tc[-1]
+                        )
+                    )
+                df_downloaded = download_table(t, args, tc=tc)
+                if isinstance(df_downloaded, (int, float)) and df_downloaded==1:
+                    if args.print_on:
+                        print(
+                            "There was an error connecting to quandl for stocks in {} from {} to {}".format(
+                                t, tc[0], tc[-1]
+                            )
+                        )
+                    continue
+                elif df_downloaded.size != 0:
+                    accumulate_results(df_downloaded, t, args)
         else:
-            download_table(t, [], args)
-        print("Completed download of {} in {}".format(t, time.time() - tstart))
+            # For smaller tables, download the whole table at once.
+            df_downloaded = download_table(t, args)
+            if isinstance(df_downloaded, (int, float)) and df_downloaded==1:
+                if args.print_on:
+                    print("There was an error connecting to quandl for stocks in {}".format(t))
+                continue
+            elif df_downloaded.size != 0:
+                accumulate_results(df_downloaded, t, args)
+
+        consolidate_results(t, tstart, args)
+
         tstart = time.time()
 
-    if args.save_to == "db":
-        c.close()
-        conn.close()
+    if args.print_on:
+        print("Elapsed time is {:.2f}".format(time.time() - start_timer))
 
     return None
 
 
-# todo if not used by end.
 def add_bool_arg(parser, name, default=False, help_text=""):
+    """ Sets the boolean args.parse values. """
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument("--" + name, dest=name, action="store_true", help=help_text)
     group.add_argument("--no-" + name, dest=name, action="store_false", help=None)
@@ -346,31 +388,10 @@ def parse_args(pargs=None):
     )
 
     parser.add_argument(
-        "--fromdate",
-        required=False,
-        default="",
-        help="Date to download data from. If blank and table exists, then fromdate will be from the latest date in \n"
-        "the table.  If blank and no table, will start downloading from the beginning of the dataset.",
-    )
-
-    parser.add_argument(
         "--todate",
         required=False,
         default="",
         help="Date to download data to. If blank, download to today's date.",
-    )
-
-    parser.add_argument(
-        "--save_to",
-        required=False,
-        default="db",
-        help="Save to either database or csv. Valid values are db or csv. Default is None. \n"
-        "If the database or csv does not exist, it will be created. \n"
-        "If CSV exists and fromdate provided then csv file will be overwritten. \n"
-        "If CSV exists and fromdate not provided, then csv will be updated to latest date. \n"
-        "If database exist and table does not exists, table will be created. \n"
-        "If database exist and table exist, and fromdate provided, table will be overwritten. \n"
-        "If database exist and table exist, and fromdate not provided, table will be updated.\n",
     )
 
     parser.add_argument(
@@ -384,8 +405,12 @@ def parse_args(pargs=None):
     parser.add_argument(
         "--directory",
         required=False,
-        default=".",
+        default="data",
         help="Sub directory to save the csv or database files in.",
+    )
+
+    add_bool_arg(
+        parser, "print_on", False, "Print output. --print_on True; --no-print_on False"
     )
 
     parser.add_argument(
@@ -404,9 +429,5 @@ def parse_args(pargs=None):
 
 
 if __name__ == "__main__":
-    import time
-
-    start_timer = time.time()
     main()
-
-    print("Elapsed time is {:.2f}".format(time.time() - start_timer))
+# todo make print messages log as well to file.
