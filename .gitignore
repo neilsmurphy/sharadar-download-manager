@@ -11,3 +11,6 @@ Untitled.ipynb
 __pycache__/
 asyncio_test.py
 config_full.py
+config.py
+datatest/
+test.py
