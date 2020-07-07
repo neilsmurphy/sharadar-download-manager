@@ -95,16 +95,6 @@ def test_path_directory():
     at = ArgsTest(directory=dir)
     assert path_directory(at).name == dir
 
-
-def test_path_csv():
-    table = "EVENTS"
-    save_to = "csv"
-    save_name = "mytest"
-    dir = "data"
-    at = ArgsTest(directory=dir, save_name=save_name, save_to=save_to)
-
-    assert str(path_save(table, at)) == "{}/{}_{}.csv".format(dir, save_name, table)
-
 def test_path_db():
     table = "EVENTS"
     save_to = "db"
@@ -112,7 +102,7 @@ def test_path_db():
     dir = "data"
     at = ArgsTest(directory=dir, save_name=save_name, save_to=save_to)
 
-    assert str(path_save(table, at)) == "{}/{}.db".format(dir, save_name)
+    assert str(path_save(at)) == "{}/{}.db".format(dir, save_name)
 
 def test_db_exist():
     pass
